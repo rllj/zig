@@ -1318,6 +1318,25 @@ test "packed struct equality ignores padding bits" {
     try std.testing.expect(s == S{ .b = true });
 }
 
+test "switch on packed struct" {
+    const Foo = packed struct {
+        a: u1,
+        b: u1,
+    };
+
+    const S = struct {
+        fn doTest(x: Foo) bool {
+            return switch (x) {
+                .{ .a = 0, .b = 1 }, .{ .a = 1, .b = 0 } => true,
+                else => false,
+            };
+        }
+    };
+
+    try expect(S.doTest(.{ .a = 1, .b = 0 }));
+    try expect(!comptime S.doTest(.{ .a = 0, .b = 0 }));
+}
+
 test "packed struct with signed field" {
     var s: packed struct {
         a: i2,

@@ -11400,10 +11400,16 @@ fn switchCond(
             return sema.unionToTag(block, enum_ty, operand, src);
         },
 
+        .@"struct" => {
+            if (operand_ty.containerLayout(zcu) != .@"packed") {
+                return sema.fail(block, src, "switch on type '{}'", .{operand_ty.fmt(pt)});
+            }
+            return operand;
+        },
+
         .error_union,
         .noreturn,
         .array,
-        .@"struct",
         .undefined,
         .null,
         .optional,
@@ -12272,10 +12278,77 @@ fn zirSwitchBlock(sema: *Sema, block: *Block, inst: Zir.Inst.Index, operand_is_r
             }
         },
 
+        .@"struct" => {
+            if (cond_ty.containerLayout(zcu) != .@"packed") {
+                return sema.fail(block, operand_src, "invalid switch operand type '{}'", .{
+                    raw_operand_ty.fmt(pt),
+                });
+            }
+
+            var extra_index: usize = special.end;
+            {
+                var scalar_i: u32 = 0;
+                while (scalar_i < scalar_cases_len) : (scalar_i += 1) {
+                    const item_ref: Zir.Inst.Ref = @enumFromInt(sema.code.extra[extra_index]);
+                    extra_index += 1;
+                    const info: Zir.Inst.SwitchBlock.ProngInfo = @bitCast(sema.code.extra[extra_index]);
+                    extra_index += 1 + info.body_len;
+
+                    const validated_item = try sema.validateSwitchItemPackedStruct(
+                        block,
+                        &range_set,
+                        item_ref,
+                        cond_ty,
+                        block.src(.{ .switch_case_item = .{
+                            .switch_node_offset = src_node_offset,
+                            .case_idx = .{ .kind = .scalar, .index = @intCast(scalar_i) },
+                            .item_idx = .{ .kind = .single, .index = 0 },
+                        } }),
+                    );
+
+                    const item_ty = sema.typeOf(validated_item);
+                    std.log.warn("Packed struct case {}: ref={}, type={}", .{ scalar_i, validated_item, item_ty.fmt(sema.pt) });
+
+                    case_vals.appendAssumeCapacity(validated_item);
+                }
+            }
+            {
+                var multi_i: u32 = 0;
+                while (multi_i < multi_cases_len) : (multi_i += 1) {
+                    const items_len = sema.code.extra[extra_index];
+                    extra_index += 1;
+                    const ranges_len = sema.code.extra[extra_index];
+                    extra_index += 1;
+                    const info: Zir.Inst.SwitchBlock.ProngInfo = @bitCast(sema.code.extra[extra_index]);
+                    extra_index += 1;
+                    const items = sema.code.refSlice(extra_index, items_len);
+                    extra_index += items_len;
+
+                    try case_vals.ensureUnusedCapacity(gpa, items.len);
+                    for (items, 0..) |item_ref, item_i| {
+                        case_vals.appendAssumeCapacity(try sema.validateSwitchItemPackedStruct(
+                            block,
+                            &range_set,
+                            item_ref,
+                            cond_ty,
+                            block.src(.{ .switch_case_item = .{
+                                .switch_node_offset = src_node_offset,
+                                .case_idx = .{ .kind = .multi, .index = @intCast(multi_i) },
+                                .item_idx = .{ .kind = .single, .index = @intCast(item_i) },
+                            } }),
+                        ));
+                    }
+
+                    extra_index += info.body_len;
+
+                    try sema.validateSwitchNoRange(block, ranges_len, cond_ty, src_node_offset);
+                }
+            }
+        },
+
         .error_union,
         .noreturn,
         .array,
-        .@"struct",
         .undefined,
         .null,
         .optional,
@@ -13429,6 +13502,10 @@ fn resolveSwitchItemVal(
     // Only if we know for sure we need to report a compile error do we resolve the
     // full source locations.
 
+    std.log.warn("coerce dest type={}, coerce from type={}", .{
+        coerce_ty.fmt(sema.pt),
+        sema.typeOf(uncoerced_item).fmt(sema.pt),
+    });
     const item = try sema.coerce(block, coerce_ty, uncoerced_item, item_src);
 
     const maybe_lazy = try sema.resolveConstDefinedValue(block, item_src, item, .{ .simple = .switch_item });
@@ -13784,6 +13861,21 @@ fn validateSwitchNoRange(
         break :msg msg;
     };
     return sema.failWithOwnedErrorMsg(block, msg);
+}
+
+fn validateSwitchItemPackedStruct(
+    sema: *Sema,
+    block: *Block,
+    range_set: *RangeSet,
+    item_ref: Zir.Inst.Ref,
+    operand_ty: Type,
+    item_src: LazySrcLoc,
+) CompileError!Air.Inst.Ref {
+    std.log.warn("operand_ty: {}", .{operand_ty.fmt(sema.pt)});
+    const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
+    const maybe_prev_src = try range_set.add(item.val, item.val, item_src);
+    try sema.validateSwitchDupe(block, maybe_prev_src, item_src);
+    return item.ref;
 }
 
 fn maybeErrorUnwrap(
