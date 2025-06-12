@@ -12296,7 +12296,6 @@ fn zirSwitchBlock(sema: *Sema, block: *Block, inst: Zir.Inst.Index, operand_is_r
 
                     const validated_item = try sema.validateSwitchItemPackedStruct(
                         block,
-                        &range_set,
                         item_ref,
                         cond_ty,
                         block.src(.{ .switch_case_item = .{
@@ -12328,7 +12327,6 @@ fn zirSwitchBlock(sema: *Sema, block: *Block, inst: Zir.Inst.Index, operand_is_r
                     for (items, 0..) |item_ref, item_i| {
                         case_vals.appendAssumeCapacity(try sema.validateSwitchItemPackedStruct(
                             block,
-                            &range_set,
                             item_ref,
                             cond_ty,
                             block.src(.{ .switch_case_item = .{
@@ -13502,10 +13500,6 @@ fn resolveSwitchItemVal(
     // Only if we know for sure we need to report a compile error do we resolve the
     // full source locations.
 
-    std.log.warn("coerce dest type={}, coerce from type={}", .{
-        coerce_ty.fmt(sema.pt),
-        sema.typeOf(uncoerced_item).fmt(sema.pt),
-    });
     const item = try sema.coerce(block, coerce_ty, uncoerced_item, item_src);
 
     const maybe_lazy = try sema.resolveConstDefinedValue(block, item_src, item, .{ .simple = .switch_item });
@@ -13741,7 +13735,12 @@ fn validateSwitchItemEnum(
     item_src: LazySrcLoc,
 ) CompileError!Air.Inst.Ref {
     const ip = &sema.pt.zcu.intern_pool;
+    log.warn("coerce to {} (enum)", .{operand_ty.fmt(sema.pt)});
     const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
+    log.warn(
+        "coerce to {} from {s} (packed struct)",
+        .{ operand_ty.fmt(sema.pt), item.ref.toType().fmt(sema.pt) },
+    );
     const int = ip.indexToKey(item.val).enum_tag.int;
     const field_index = ip.loadEnumType(ip.typeOf(item.val)).tagValueIndex(ip, int) orelse {
         const maybe_prev_src = try range_set.add(int, int, item_src);
@@ -13751,6 +13750,22 @@ fn validateSwitchItemEnum(
     const maybe_prev_src = seen_fields[field_index];
     seen_fields[field_index] = item_src;
     try sema.validateSwitchDupe(block, maybe_prev_src, item_src);
+    return item.ref;
+}
+
+fn validateSwitchItemPackedStruct(
+    sema: *Sema,
+    block: *Block,
+    item_ref: Zir.Inst.Ref,
+    operand_ty: Type,
+    item_src: LazySrcLoc,
+) CompileError!Air.Inst.Ref {
+    const ip = &sema.pt.zcu.intern_pool;
+    const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
+    log.warn(
+        "coerce to {} from {s} (packed struct)",
+        .{ operand_ty.fmt(sema.pt), @tagName(item.ref.toInterned().?.unwrap(ip).getItem(ip).tag) },
+    );
     return item.ref;
 }
 
@@ -13861,21 +13876,6 @@ fn validateSwitchNoRange(
         break :msg msg;
     };
     return sema.failWithOwnedErrorMsg(block, msg);
-}
-
-fn validateSwitchItemPackedStruct(
-    sema: *Sema,
-    block: *Block,
-    range_set: *RangeSet,
-    item_ref: Zir.Inst.Ref,
-    operand_ty: Type,
-    item_src: LazySrcLoc,
-) CompileError!Air.Inst.Ref {
-    std.log.warn("operand_ty: {}", .{operand_ty.fmt(sema.pt)});
-    const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
-    const maybe_prev_src = try range_set.add(item.val, item.val, item_src);
-    try sema.validateSwitchDupe(block, maybe_prev_src, item_src);
-    return item.ref;
 }
 
 fn maybeErrorUnwrap(
