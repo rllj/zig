@@ -251,7 +251,7 @@ test "array to vector with element type coercion" {
     if (builtin.zig_backend == .stage2_riscv64) return error.SkipZigTest;
 
     if (builtin.zig_backend == .stage2_x86_64 and builtin.target.ofmt == .coff and
-        !comptime std.Target.x86.featureSetHas(builtin.cpu.features, .f16c)) return error.SkipZigTest;
+        !comptime builtin.cpu.has(.x86, .f16c)) return error.SkipZigTest;
 
     const S = struct {
         fn doTheTest() !void {
@@ -356,13 +356,6 @@ test "vector @splat" {
     if (builtin.zig_backend == .stage2_riscv64) return error.SkipZigTest;
     if (builtin.zig_backend == .stage2_spirv64) return error.SkipZigTest;
     if (builtin.zig_backend == .stage2_x86_64 and builtin.target.ofmt != .elf and builtin.target.ofmt != .macho) return error.SkipZigTest;
-
-    if (builtin.zig_backend == .stage2_llvm and
-        builtin.os.tag == .macos)
-    {
-        // LLVM 15 regression: https://github.com/ziglang/zig/issues/12827
-        return error.SkipZigTest;
-    }
 
     const S = struct {
         fn testForT(comptime N: comptime_int, v: anytype) !void {
@@ -559,12 +552,12 @@ test "vector comparison operators" {
 
 test "vector division operators" {
     if (builtin.zig_backend == .stage2_wasm) return error.SkipZigTest; // TODO
-    if (builtin.zig_backend == .stage2_x86_64) return error.SkipZigTest; // TODO
     if (builtin.zig_backend == .stage2_aarch64) return error.SkipZigTest; // TODO
     if (builtin.zig_backend == .stage2_arm) return error.SkipZigTest; // TODO
     if (builtin.zig_backend == .stage2_sparc64) return error.SkipZigTest; // TODO
     if (builtin.zig_backend == .stage2_riscv64) return error.SkipZigTest;
     if (builtin.zig_backend == .stage2_spirv64) return error.SkipZigTest;
+    if (builtin.zig_backend == .stage2_x86_64 and builtin.target.ofmt != .elf and builtin.target.ofmt != .macho) return error.SkipZigTest;
 
     const S = struct {
         fn doTheTestDiv(comptime T: type, x: @Vector(4, T), y: @Vector(4, T)) !void {
@@ -1259,9 +1252,7 @@ test "byte vector initialized in inline function" {
     if (builtin.zig_backend == .stage2_riscv64) return error.SkipZigTest;
     if (builtin.cpu.arch == .aarch64_be and builtin.zig_backend == .stage2_llvm) return error.SkipZigTest;
 
-    if (comptime builtin.zig_backend == .stage2_llvm and builtin.cpu.arch == .x86_64 and
-        std.Target.x86.featureSetHas(builtin.cpu.features, .avx512f))
-    {
+    if (builtin.zig_backend == .stage2_llvm and builtin.cpu.arch == .x86_64 and comptime builtin.cpu.has(.x86, .avx512f)) {
         // TODO https://github.com/ziglang/zig/issues/13279
         return error.SkipZigTest;
     }

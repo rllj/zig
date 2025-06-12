@@ -993,8 +993,8 @@ pub fn abiAlignmentInner(
                     },
                     .stage2_x86_64 => {
                         if (vector_type.child == .bool_type) {
-                            if (vector_type.len > 256 and std.Target.x86.featureSetHas(target.cpu.features, .avx512f)) return .{ .scalar = .@"64" };
-                            if (vector_type.len > 128 and std.Target.x86.featureSetHas(target.cpu.features, .avx)) return .{ .scalar = .@"32" };
+                            if (vector_type.len > 256 and target.cpu.has(.x86, .avx512f)) return .{ .scalar = .@"64" };
+                            if (vector_type.len > 128 and target.cpu.has(.x86, .avx)) return .{ .scalar = .@"32" };
                             if (vector_type.len > 64) return .{ .scalar = .@"16" };
                             const bytes = std.math.divCeil(u32, vector_type.len, 8) catch unreachable;
                             const alignment = std.math.ceilPowerOfTwoAssert(u32, bytes);
@@ -1003,8 +1003,8 @@ pub fn abiAlignmentInner(
                         const elem_bytes: u32 = @intCast((try Type.fromInterned(vector_type.child).abiSizeInner(strat, zcu, tid)).scalar);
                         if (elem_bytes == 0) return .{ .scalar = .@"1" };
                         const bytes = elem_bytes * vector_type.len;
-                        if (bytes > 32 and std.Target.x86.featureSetHas(target.cpu.features, .avx512f)) return .{ .scalar = .@"64" };
-                        if (bytes > 16 and std.Target.x86.featureSetHas(target.cpu.features, .avx)) return .{ .scalar = .@"32" };
+                        if (bytes > 32 and target.cpu.has(.x86, .avx512f)) return .{ .scalar = .@"64" };
+                        if (bytes > 16 and target.cpu.has(.x86, .avx)) return .{ .scalar = .@"32" };
                         return .{ .scalar = .@"16" };
                     },
                 }
@@ -1636,14 +1636,22 @@ pub fn bitSizeInner(
         .array_type => |array_type| {
             const len = array_type.lenIncludingSentinel();
             if (len == 0) return 0;
-            const elem_ty = Type.fromInterned(array_type.child);
-            const elem_size = (try elem_ty.abiSizeInner(strat_lazy, zcu, tid)).scalar;
-            if (elem_size == 0) return 0;
-            const elem_bit_size = try elem_ty.bitSizeInner(strat, zcu, tid);
-            return (len - 1) * 8 * elem_size + elem_bit_size;
+            const elem_ty: Type = .fromInterned(array_type.child);
+            switch (zcu.comp.getZigBackend()) {
+                else => {
+                    const elem_size = (try elem_ty.abiSizeInner(strat_lazy, zcu, tid)).scalar;
+                    if (elem_size == 0) return 0;
+                    const elem_bit_size = try elem_ty.bitSizeInner(strat, zcu, tid);
+                    return (len - 1) * 8 * elem_size + elem_bit_size;
+                },
+                .stage2_x86_64 => {
+                    const elem_bit_size = try elem_ty.bitSizeInner(strat, zcu, tid);
+                    return elem_bit_size * len;
+                },
+            }
         },
         .vector_type => |vector_type| {
-            const child_ty = Type.fromInterned(vector_type.child);
+            const child_ty: Type = .fromInterned(vector_type.child);
             const elem_bit_size = try child_ty.bitSizeInner(strat, zcu, tid);
             return elem_bit_size * vector_type.len;
         },
@@ -3549,10 +3557,16 @@ pub fn packedStructFieldPtrInfo(struct_ty: Type, parent_ptr_ty: Type, field_idx:
         running_bits += @intCast(f_ty.bitSize(zcu));
     }
 
-    const res_host_size: u16, const res_bit_offset: u16 = if (parent_ptr_info.packed_offset.host_size != 0)
-        .{ parent_ptr_info.packed_offset.host_size, parent_ptr_info.packed_offset.bit_offset + bit_offset }
-    else
-        .{ (running_bits + 7) / 8, bit_offset };
+    const res_host_size: u16, const res_bit_offset: u16 = if (parent_ptr_info.packed_offset.host_size != 0) .{
+        parent_ptr_info.packed_offset.host_size,
+        parent_ptr_info.packed_offset.bit_offset + bit_offset,
+    } else .{
+        switch (zcu.comp.getZigBackend()) {
+            else => (running_bits + 7) / 8,
+            .stage2_x86_64 => @intCast(struct_ty.abiSize(zcu)),
+        },
+        bit_offset,
+    };
 
     // If the field happens to be byte-aligned, simplify the pointer type.
     // We can only do this if the pointee's bit size matches its ABI byte size,
