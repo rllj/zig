@@ -12294,7 +12294,7 @@ fn zirSwitchBlock(sema: *Sema, block: *Block, inst: Zir.Inst.Index, operand_is_r
                     const info: Zir.Inst.SwitchBlock.ProngInfo = @bitCast(sema.code.extra[extra_index]);
                     extra_index += 1 + info.body_len;
 
-                    const validated_item = try sema.validateSwitchItemPackedStruct(
+                    case_vals.appendAssumeCapacity(try sema.validateSwitchItemPackedStruct(
                         block,
                         item_ref,
                         cond_ty,
@@ -12303,12 +12303,7 @@ fn zirSwitchBlock(sema: *Sema, block: *Block, inst: Zir.Inst.Index, operand_is_r
                             .case_idx = .{ .kind = .scalar, .index = @intCast(scalar_i) },
                             .item_idx = .{ .kind = .single, .index = 0 },
                         } }),
-                    );
-
-                    const item_ty = sema.typeOf(validated_item);
-                    std.log.warn("Packed struct case {}: ref={}, type={}", .{ scalar_i, validated_item, item_ty.fmt(sema.pt) });
-
-                    case_vals.appendAssumeCapacity(validated_item);
+                    ));
                 }
             }
             {
@@ -13876,6 +13871,17 @@ fn validateSwitchNoRange(
         break :msg msg;
     };
     return sema.failWithOwnedErrorMsg(block, msg);
+}
+
+fn validateSwitchItemPackedStruct(
+    sema: *Sema,
+    block: *Block,
+    item_ref: Zir.Inst.Ref,
+    operand_ty: Type,
+    item_src: LazySrcLoc,
+) CompileError!Air.Inst.Ref {
+    const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
+    return item.ref;
 }
 
 fn maybeErrorUnwrap(
