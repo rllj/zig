@@ -7907,9 +7907,7 @@ fn switchExpr(
 
     // If this switch is labeled, it may have `continue`s targeting it, and thus we need the operand type
     // to provide a result type.
-    const raw_operand_ty_ref = if (switch_full.label_token != null) t: {
-        break :t try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
-    } else undefined;
+    const raw_operand_ty_ref = try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
 
     // This contains the data that goes into the `extra` array for the SwitchBlock/SwitchBlockMulti,
     // except the first cases_nodes.len slots are a table that indexes payloads later in the array, with
@@ -8089,7 +8087,7 @@ fn switchExpr(
             scalar_case_index += 1;
             try payloads.resize(gpa, header_index + 2); // item, body_len
             const item_node = case.ast.values[0];
-            const item_inst = try comptimeExpr(parent_gz, scope, item_ri, item_node, .switch_item);
+            const item_inst = try comptimeExpr(parent_gz, scope, .{ .rl = .{ .coerced_ty = raw_operand_ty_ref }, .ctx = item_ri.ctx }, item_node, .switch_item);
             payloads.items[header_index] = @intFromEnum(item_inst);
             break :blk header_index + 1;
         };
