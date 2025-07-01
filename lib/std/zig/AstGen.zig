@@ -7907,7 +7907,8 @@ fn switchExpr(
 
     // If this switch is labeled, it may have `continue`s targeting it, and thus we need the operand type
     // to provide a result type.
-    const raw_operand_ty_ref = try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
+    //const raw_operand_ty_ref = try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
+    const raw_operand_ty_ref = try parent_gz.addExtendedMultiOp(.typeof_switch_operand, operand_node, &.{raw_operand});
 
     // This contains the data that goes into the `extra` array for the SwitchBlock/SwitchBlockMulti,
     // except the first cases_nodes.len slots are a table that indexes payloads later in the array, with

@@ -1971,6 +1971,7 @@ pub const Inst = struct {
         /// `small` is `operands_len`.
         /// The AST node is the builtin call.
         typeof_peer,
+        typeof_switch_operand,
         /// Implements the `@min` builtin for more than 2 args.
         /// `operand` is payload index to `NodeMultiOp`.
         /// `small` is `operands_len`.
@@ -4408,6 +4409,7 @@ fn findTrackableInner(
                 .tuple_decl,
                 .dbg_empty_stmt,
                 .astgen_error,
+                .typeof_switch_operand,
                 => return,
 
                 // `@TypeOf` has a body.

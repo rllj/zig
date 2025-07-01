@@ -547,6 +547,7 @@ const Writer = struct {
 
             .compile_log => try self.writeNodeMultiOp(stream, extended),
             .typeof_peer => try self.writeTypeofPeer(stream, extended),
+            .typeof_switch_operand => try self.writeTypeofSwitchOperand(stream, extended),
             .min_multi => try self.writeNodeMultiOp(stream, extended),
             .max_multi => try self.writeNodeMultiOp(stream, extended),
 
@@ -2418,6 +2419,12 @@ const Writer = struct {
             try self.writeInstRef(stream, arg);
         }
         try stream.writeAll("])");
+    }
+
+    fn writeTypeofSwitchOperand(self: *Writer, stream: anytype, extended: Zir.Inst.Extended.InstData) !void {
+        _ = self;
+        _ = extended;
+        try stream.writeAll("astaghfirulla");
     }
 
     fn writeBoolBr(self: *Writer, stream: anytype, inst: Zir.Inst.Index) !void {
