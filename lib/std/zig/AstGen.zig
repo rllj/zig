@@ -7903,15 +7903,16 @@ fn switchExpr(
     const operand_lc: LineColumn = .{ astgen.source_line - parent_gz.decl_line, astgen.source_column };
 
     const raw_operand = try expr(parent_gz, scope, operand_ri, operand_node);
-    const item_ri: ResultInfo = .{ .rl = .none };
 
     // If this switch is labeled, it may have `continue`s targeting it, and thus we need the operand type
     // to provide a result type.
-    //const raw_operand_ty_ref = try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
-    const raw_operand_ty_ref = try parent_gz.addExtendedPayload(.typeof_switch_operand, Zir.Inst.UnNode{
+    const raw_operand_ty_ref = try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
+    const operand_ty_ref = try parent_gz.addExtendedPayload(.typeof_switch_operand, Zir.Inst.UnNode{
         .node = parent_gz.nodeIndexToRelative(operand_node),
         .operand = raw_operand,
     });
+
+    const item_ri: ResultInfo = .{ .rl = .{ .coerced_ty = operand_ty_ref } };
 
     // This contains the data that goes into the `extra` array for the SwitchBlock/SwitchBlockMulti,
     // except the first cases_nodes.len slots are a table that indexes payloads later in the array, with
@@ -8091,7 +8092,7 @@ fn switchExpr(
             scalar_case_index += 1;
             try payloads.resize(gpa, header_index + 2); // item, body_len
             const item_node = case.ast.values[0];
-            const item_inst = try comptimeExpr(parent_gz, scope, .{ .rl = .{ .coerced_ty = raw_operand_ty_ref }, .ctx = item_ri.ctx }, item_node, .switch_item);
+            const item_inst = try comptimeExpr(parent_gz, scope, item_ri, item_node, .switch_item);
             payloads.items[header_index] = @intFromEnum(item_inst);
             break :blk header_index + 1;
         };

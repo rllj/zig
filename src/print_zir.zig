@@ -547,7 +547,6 @@ const Writer = struct {
 
             .compile_log => try self.writeNodeMultiOp(stream, extended),
             .typeof_peer => try self.writeTypeofPeer(stream, extended),
-            .typeof_switch_operand => try self.writeNodeMultiOp(stream, extended),
             .min_multi => try self.writeNodeMultiOp(stream, extended),
             .max_multi => try self.writeNodeMultiOp(stream, extended),
 
@@ -579,6 +578,7 @@ const Writer = struct {
             .work_group_size,
             .work_group_id,
             .branch_hint,
+            .typeof_switch_operand,
             => {
                 const inst_data = self.code.extraData(Zir.Inst.UnNode, extended.operand).data;
                 try self.writeInstRef(stream, inst_data.operand);

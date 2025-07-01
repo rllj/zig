@@ -18459,40 +18459,19 @@ fn zirTypeofSwitchOperand(
 
     const operand_ty = ty: {
         const ty = sema.typeOf(operand);
-        switch (ty.zigTypeTag(zcu)) {
-            .@"union" => {
-                break :ty ty.unionTagType(zcu) orelse {
-                    //const msg = msg: {
-                    //    const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
-                    //    errdefer msg.destroy(sema.gpa);
-                    //    if (ty.srcLocOrNull(zcu)) |union_src| {
-                    //        try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
-                    //    }
-                    //    break :msg msg;
-                    //};
-                    //return sema.failWithOwnedErrorMsg(block, msg);
-                    @panic("TODO");
-                };
-            },
-            .pointer => {
-                const child_ty = ty.childType(zcu);
-                if (child_ty.zigTypeTag(zcu) == .@"union") {
-                    break :ty child_ty.unionTagType(zcu) orelse {
-                        //const msg = msg: {
-                        //    const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
-                        //    errdefer msg.destroy(sema.gpa);
-                        //    if (ty.srcLocOrNull(zcu)) |union_src| {
-                        //        try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
-                        //    }
-                        //    break :msg msg;
-                        //};
-                        //return sema.failWithOwnedErrorMsg(block, msg);
-                        std.debug.panic("{s}\n", .{@tagName(ty.zigTypeTag(zcu))});
-                    };
-                }
-                break :ty child_ty;
-            },
-            else => break :ty ty,
+        if (ty.zigTypeTag(zcu) == .@"union") {
+            break :ty ty.unionTagType(zcu) orelse {
+                //const msg = msg: {
+                //    const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
+                //    errdefer msg.destroy(sema.gpa);
+                //    if (ty.srcLocOrNull(zcu)) |union_src| {
+                //        try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
+                //    }
+                //    break :msg msg;
+                //};
+                //return sema.failWithOwnedErrorMsg(block, msg);
+                @panic("TODO");
+            };
         }
         break :ty ty;
     };
