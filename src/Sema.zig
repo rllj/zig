@@ -1396,7 +1396,7 @@ fn analyzeBodyInner(
                     .@"asm"                => try sema.zirAsm(                block, extended, false),
                     .asm_expr              => try sema.zirAsm(                block, extended, true),
                     .typeof_peer           => try sema.zirTypeofPeer(         block, extended, inst),
-                    .typeof_switch_operand => try sema.zirTypeofSwitchOperand(block, extended, inst),
+                    .typeof_switch_operand => try sema.zirTypeofSwitchOperand(block, extended),
                     .compile_log           => try sema.zirCompileLog(         block, extended),
                     .min_multi             => try sema.zirMinMaxMulti(        block, extended, .min),
                     .max_multi             => try sema.zirMinMaxMulti(        block, extended, .max),
@@ -18450,57 +18450,53 @@ fn zirTypeofSwitchOperand(
     sema: *Sema,
     block: *Block,
     extended: Zir.Inst.Extended.InstData,
-    inst: Zir.Inst.Index,
 ) CompileError!Air.Inst.Ref {
-    const tracy = trace(@src());
-    defer tracy.end();
-
+    _ = block;
     const zcu = sema.pt.zcu;
-    const extra = sema.code.extraData(Zir.Inst.TypeOfPeer, extended.operand);
-    const src = block.nodeOffset(extra.data.src_node);
-    const body = sema.code.bodySlice(extra.data.body_index, extra.data.body_len);
+    const extra = sema.code.extraData(Zir.Inst.UnNode, extended.operand).data;
+    const operand = try sema.resolveInst(extra.operand);
+    //const src = block.src(.{ .node_offset_un_op = extra.node });
 
-    var child_block: Block = .{
-        .parent = block,
-        .sema = sema,
-        .namespace = block.namespace,
-        .instructions = .{},
-        .inlining = block.inlining,
-        .comptime_reason = null,
-        .is_typeof = true,
-        .runtime_cond = block.runtime_cond,
-        .runtime_loop = block.runtime_loop,
-        .runtime_index = block.runtime_index,
-        .src_base_inst = block.src_base_inst,
-        .type_name_ctx = block.type_name_ctx,
-    };
-    defer child_block.instructions.deinit(sema.gpa);
-    // Ignore the result, we only care about the instructions in `args`.
-    _ = try sema.analyzeInlineBody(&child_block, body, inst);
-
-    const args = sema.code.refSlice(extra.end, extended.small);
-
-    const inst_list = try sema.gpa.alloc(Air.Inst.Ref, args.len);
-    defer sema.gpa.free(inst_list);
-
-    for (args, 0..) |arg_ref, i| {
-        inst_list[i] = try sema.resolveInst(arg_ref);
-    }
-
-    const result_type = ty: {
-        const ty = try sema.resolvePeerTypes(
-            block,
-            src,
-            inst_list,
-            .{ .typeof_builtin_call_node_offset = extra.data.src_node },
-        );
-        // TODO
-        if (ty.zigTypeTag(zcu) == .@"union") {
-            break :ty ty.unionTagType(zcu) orelse @panic("TODO");
+    const operand_ty = ty: {
+        const ty = sema.typeOf(operand);
+        switch (ty.zigTypeTag(zcu)) {
+            .@"union" => {
+                break :ty ty.unionTagType(zcu) orelse {
+                    //const msg = msg: {
+                    //    const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
+                    //    errdefer msg.destroy(sema.gpa);
+                    //    if (ty.srcLocOrNull(zcu)) |union_src| {
+                    //        try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
+                    //    }
+                    //    break :msg msg;
+                    //};
+                    //return sema.failWithOwnedErrorMsg(block, msg);
+                    @panic("TODO");
+                };
+            },
+            .pointer => {
+                const child_ty = ty.childType(zcu);
+                if (child_ty.zigTypeTag(zcu) == .@"union") {
+                    break :ty child_ty.unionTagType(zcu) orelse {
+                        //const msg = msg: {
+                        //    const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
+                        //    errdefer msg.destroy(sema.gpa);
+                        //    if (ty.srcLocOrNull(zcu)) |union_src| {
+                        //        try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
+                        //    }
+                        //    break :msg msg;
+                        //};
+                        //return sema.failWithOwnedErrorMsg(block, msg);
+                        std.debug.panic("{s}\n", .{@tagName(ty.zigTypeTag(zcu))});
+                    };
+                }
+                break :ty child_ty;
+            },
+            else => break :ty ty,
         }
         break :ty ty;
     };
-    return Air.internedToRef(result_type.toIntern());
+    return Air.internedToRef(operand_ty.toIntern());
 }
 
 fn zirBoolNot(sema: *Sema, block: *Block, inst: Zir.Inst.Index) CompileError!Air.Inst.Ref {
