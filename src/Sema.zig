@@ -13791,6 +13791,20 @@ fn validateSwitchItemError(
     return item.ref;
 }
 
+fn validateSwitchItemPackedStruct(
+    sema: *Sema,
+    block: *Block,
+    range_set: *RangeSet,
+    item_ref: Zir.Inst.Ref,
+    operand_ty: Type,
+    item_src: LazySrcLoc,
+) CompileError!Air.Inst.Ref {
+    const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
+    const maybe_prev_src = try range_set.add(item.val, item.val, item_src);
+    try sema.validateSwitchDupe(block, maybe_prev_src, item_src);
+    return item.ref;
+}
+
 fn validateSwitchDupe(
     sema: *Sema,
     block: *Block,
@@ -13880,17 +13894,6 @@ fn validateSwitchNoRange(
         break :msg msg;
     };
     return sema.failWithOwnedErrorMsg(block, msg);
-}
-
-fn validateSwitchItemPackedStruct(
-    sema: *Sema,
-    block: *Block,
-    item_ref: Zir.Inst.Ref,
-    operand_ty: Type,
-    item_src: LazySrcLoc,
-) CompileError!Air.Inst.Ref {
-    const item = try sema.resolveSwitchItemVal(block, item_ref, operand_ty, item_src);
-    return item.ref;
 }
 
 fn maybeErrorUnwrap(
