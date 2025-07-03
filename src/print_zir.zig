@@ -2421,19 +2421,6 @@ const Writer = struct {
         try stream.writeAll("])");
     }
 
-    fn writeTypeofSwitchOperand(self: *Writer, stream: anytype, extended: Zir.Inst.Extended.InstData) !void {
-        const extra = self.code.extraData(Zir.Inst.TypeOfPeer, extended.operand);
-        const body = self.code.bodySlice(extra.data.body_index, extra.data.body_len);
-        try self.writeBracedBody(stream, body);
-        try stream.writeAll(",[");
-        const args = self.code.refSlice(extra.end, extended.small);
-        for (args, 0..) |arg, i| {
-            if (i != 0) try stream.writeAll(", ");
-            try self.writeInstRef(stream, arg);
-        }
-        try stream.writeAll("])");
-    }
-
     fn writeBoolBr(self: *Writer, stream: anytype, inst: Zir.Inst.Index) !void {
         const inst_data = self.code.instructions.items(.data)[@intFromEnum(inst)].pl_node;
         const extra = self.code.extraData(Zir.Inst.BoolBr, inst_data.payload_index);
