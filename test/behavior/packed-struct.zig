@@ -1340,6 +1340,29 @@ test "switch on packed struct" {
     try expect(!comptime S.doTest(.{ .a = 0, .b = 0 }));
 }
 
+test "switch on packed struct with reference" {
+    const Foo = packed struct {
+        a: u1,
+        b: u1,
+    };
+
+    const S = struct {
+        fn doTest(x: Foo) Foo {
+            var val = x;
+            return switch (val) {
+                .{ .a = 0, .b = 1 }, .{ .a = 1, .b = 0 } => |*bar| blk: {
+                    bar.a = 1;
+                    break :blk bar.*;
+                },
+                else => .{ .a = 0, .b = 0 },
+            };
+        }
+    };
+
+    try expect(Foo{ .a = 1, .b = 1 } == S.doTest(.{ .a = 0, .b = 1 }));
+    try expect(Foo{ .a = 0, .b = 0 } == comptime S.doTest(.{ .a = 0, .b = 0 }));
+}
+
 test "packed struct with signed field" {
     var s: packed struct {
         a: i2,
