@@ -1396,7 +1396,8 @@ fn analyzeBodyInner(
                     .@"asm"                => try sema.zirAsm(                block, extended, false),
                     .asm_expr              => try sema.zirAsm(                block, extended, true),
                     .typeof_peer           => try sema.zirTypeofPeer(         block, extended, inst),
-                    .typeof_switch_operand => try sema.zirTypeofSwitchOperand(block, extended),
+                    .typeof_switch_operand => try sema.zirTypeofSwitchOperand(block, extended, false),
+                    .typeof_switch_operand_ref => try sema.zirTypeofSwitchOperand(block, extended, true),
                     .compile_log           => try sema.zirCompileLog(         block, extended),
                     .min_multi             => try sema.zirMinMaxMulti(        block, extended, .min),
                     .max_multi             => try sema.zirMinMaxMulti(        block, extended, .max),
@@ -11389,6 +11390,7 @@ fn switchCond(
     const pt = sema.pt;
     const zcu = pt.zcu;
     const operand_ty = sema.typeOf(operand);
+
     switch (operand_ty.zigTypeTag(zcu)) {
         .type,
         .void,
@@ -18450,31 +18452,31 @@ fn zirTypeofSwitchOperand(
     sema: *Sema,
     block: *Block,
     extended: Zir.Inst.Extended.InstData,
+    comptime is_ref: bool,
 ) CompileError!Air.Inst.Ref {
-    _ = block;
     const zcu = sema.pt.zcu;
     const extra = sema.code.extraData(Zir.Inst.UnNode, extended.operand).data;
     const operand = try sema.resolveInst(extra.operand);
-    //const src = block.src(.{ .node_offset_un_op = extra.node });
+    var operand_ty = sema.typeOf(operand);
+    const src = block.nodeOffset(extra.node);
 
-    const operand_ty = ty: {
-        const ty = sema.typeOf(operand);
-        if (ty.zigTypeTag(zcu) == .@"union") {
-            break :ty ty.unionTagType(zcu) orelse {
-                //const msg = msg: {
-                //    const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
-                //    errdefer msg.destroy(sema.gpa);
-                //    if (ty.srcLocOrNull(zcu)) |union_src| {
-                //        try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
-                //    }
-                //    break :msg msg;
-                //};
-                //return sema.failWithOwnedErrorMsg(block, msg);
-                @panic("TODO");
+    if (is_ref) {
+        operand_ty = operand_ty.childType(zcu);
+    }
+
+    if (operand_ty.zigTypeTag(zcu) == .@"union") {
+        operand_ty = operand_ty.unionTagType(zcu) orelse {
+            const msg = msg: {
+                const msg = try sema.errMsg(src, "switch on union with no attached enum", .{});
+                errdefer msg.destroy(sema.gpa);
+                if (operand_ty.srcLocOrNull(zcu)) |union_src| {
+                    try sema.errNote(union_src, msg, "consider 'union(enum)' here", .{});
+                }
+                break :msg msg;
             };
-        }
-        break :ty ty;
-    };
+            return sema.failWithOwnedErrorMsg(block, msg);
+        };
+    }
     return Air.internedToRef(operand_ty.toIntern());
 }
 

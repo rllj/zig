@@ -7904,10 +7904,16 @@ fn switchExpr(
 
     const raw_operand = try expr(parent_gz, scope, operand_ri, operand_node);
 
-    // If this switch is labeled, it may have `continue`s targeting it, and thus we need the operand type
+    // If this switch is labeled, it may have `continue`s targeting it, and thus we need the raw operand type
     // to provide a result type.
-    const raw_operand_ty_ref = try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
-    const operand_ty_ref = try parent_gz.addExtendedPayload(.typeof_switch_operand, Zir.Inst.UnNode{
+    const raw_operand_ty_ref = if (switch_full.label_token != null) t: {
+        break :t try parent_gz.addUnNode(.typeof, raw_operand, operand_node);
+    } else undefined;
+
+    const operand_ty_ref = if (any_payload_is_ref) try parent_gz.addExtendedPayload(.typeof_switch_operand_ref, Zir.Inst.UnNode{
+        .node = parent_gz.nodeIndexToRelative(operand_node),
+        .operand = raw_operand,
+    }) else try parent_gz.addExtendedPayload(.typeof_switch_operand, Zir.Inst.UnNode{
         .node = parent_gz.nodeIndexToRelative(operand_node),
         .operand = raw_operand,
     });

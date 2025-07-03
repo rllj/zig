@@ -579,6 +579,7 @@ const Writer = struct {
             .work_group_id,
             .branch_hint,
             .typeof_switch_operand,
+            .typeof_switch_operand_ref,
             => {
                 const inst_data = self.code.extraData(Zir.Inst.UnNode, extended.operand).data;
                 try self.writeInstRef(stream, inst_data.operand);
