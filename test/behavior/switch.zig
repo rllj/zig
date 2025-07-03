@@ -1065,3 +1065,68 @@ test "switch on a signed value smaller than the smallest prong value" {
         else => {},
     }
 }
+
+test "switch on packed struct" {
+    const Foo = packed struct {
+        a: u1,
+        b: u1,
+    };
+
+    const S = struct {
+        fn doTest(x: Foo) bool {
+            return switch (x) {
+                .{ .a = 0, .b = 1 }, .{ .a = 1, .b = 0 } => true,
+                else => false,
+            };
+        }
+    };
+
+    try expect(S.doTest(.{ .a = 1, .b = 0 }));
+    try expect(!comptime S.doTest(.{ .a = 0, .b = 0 }));
+}
+
+test "switch on packed struct with reference" {
+    const Foo = packed struct {
+        a: u1,
+        b: u1,
+    };
+
+    const S = struct {
+        fn doTest(x: Foo) Foo {
+            var val = x;
+            return switch (val) {
+                .{ .a = 0, .b = 1 }, .{ .a = 1, .b = 0 } => |*bar| blk: {
+                    bar.a = 1;
+                    break :blk bar.*;
+                },
+                else => .{ .a = 0, .b = 0 },
+            };
+        }
+    };
+
+    try expect(Foo{ .a = 1, .b = 1 } == S.doTest(.{ .a = 0, .b = 1 }));
+    try expect(Foo{ .a = 0, .b = 0 } == comptime S.doTest(.{ .a = 0, .b = 0 }));
+}
+
+test "switch on decls" {
+    const S = struct {
+        const Foo = enum(u8) {
+            one,
+            two,
+            _,
+
+            const three: Foo = @enumFromInt(3);
+        };
+        fn doTest(x: Foo) u8 {
+            return switch (x) {
+                .one, .two => 0,
+                .three => 1,
+                else => 2,
+            };
+        }
+    };
+
+    try expectEqual(0, S.doTest(.one));
+    try expectEqual(1, S.doTest(.three));
+    try expectEqual(1, comptime S.doTest(.three));
+}
